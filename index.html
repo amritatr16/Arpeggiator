@@ -1,0 +1,1161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arpeggiator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+  :root{
+    --bg: #1a1712;
+    --panel: #23201a;
+    --panel-raised: #2b2721;
+    --line: #3c362c;
+    --cream: #ece5d3;
+    --dim: #9a9182;
+    --brass: #c9974a;
+    --brass-bright: #e6b767;
+    --led-off: #3a3229;
+    --led-on: #e8a94a;
+    --led-skip: #6b5a3c;
+    --teal: #5c9385;
+    --danger: #b8566b;
+  }
+
+  * { box-sizing: border-box; }
+
+  body{
+    margin: 0;
+    background: var(--bg);
+    background-image:
+      radial-gradient(circle at 15% 10%, rgba(255,255,255,0.02), transparent 40%),
+      radial-gradient(circle at 85% 90%, rgba(255,255,255,0.015), transparent 40%);
+    color: var(--cream);
+    font-family: 'Space Grotesk', sans-serif;
+    padding: 28px 16px 60px;
+    display: flex;
+    justify-content: center;
+  }
+
+  .unit{ width: 100%; max-width: 780px; }
+
+  .header{
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    padding: 0 4px;
+  }
+  .header h1{ font-size: 22px; font-weight: 600; margin: 0; letter-spacing: 0.2px; }
+  .header p{ margin: 0; color: var(--dim); font-size: 13px; }
+
+  .panel{
+    background: linear-gradient(180deg, var(--panel-raised), var(--panel));
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 22px;
+    margin-bottom: 14px;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.03) inset, 0 8px 24px rgba(0,0,0,0.25);
+  }
+
+  .section-label{
+    font-size: 11px;
+    color: var(--dim);
+    margin-bottom: 12px;
+    display: flex;
+    justify-content: space-between;
+    letter-spacing: 0.3px;
+  }
+
+  /* note pool keys */
+  .keys{ display: grid; grid-template-columns: repeat(12, 1fr); gap: 6px; }
+  .key{
+    background: var(--led-off);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    color: var(--dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    padding: 12px 0;
+    text-align: center;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+  }
+  .key.active{ background: var(--brass); color: #201b12; border-color: var(--brass-bright); font-weight: 600; }
+  .key:hover:not(.active){ border-color: var(--brass); color: var(--cream); }
+
+  .presets{ display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .preset-btn{
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--dim);
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 12px;
+    padding: 7px 12px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: border-color 0.12s, color 0.12s;
+  }
+  .preset-btn:hover{ border-color: var(--teal); color: var(--cream); }
+
+  /* chord picker (root + quality) */
+  .help-text{ font-size: 11.5px; color: var(--dim); line-height: 1.5; margin: 2px 0 14px; max-width: 620px; }
+  .chooser-label{ font-size: 10.5px; color: var(--dim); letter-spacing: 0.3px; margin-bottom: 7px; }
+  .chord-chooser{ margin-bottom: 16px; }
+  .root-row{ display: grid; grid-template-columns: repeat(12, 1fr); gap: 6px; margin-bottom: 10px; }
+  .quality-row{ display: flex; flex-wrap: wrap; gap: 6px; }
+  .root-btn, .quality-btn{
+    background: var(--led-off);
+    border: 1px solid var(--line);
+    color: var(--dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    padding: 9px 0;
+    border-radius: 6px;
+    text-align: center;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+  }
+  .quality-btn{ font-family: 'Space Grotesk', sans-serif; padding: 8px 14px; border-radius: 20px; }
+  .root-btn.active, .quality-btn.active{ background: var(--teal); color: #14211d; border-color: var(--teal); font-weight: 600; }
+  .root-btn:hover:not(.active), .quality-btn:hover:not(.active){ border-color: var(--teal); color: var(--cream); }
+  .chord-name-readout{ font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--brass-bright); margin-top: 10px; }
+
+  /* simple / advanced mode toggle */
+  .mode-toggle{
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 14px; padding: 0 4px;
+  }
+  .switch{ position: relative; width: 38px; height: 21px; flex-shrink: 0; }
+  .switch input{ opacity: 0; width: 0; height: 0; }
+  .switch-track{
+    position: absolute; inset: 0; background: var(--led-off);
+    border: 1px solid var(--line); border-radius: 20px; cursor: pointer; transition: background 0.15s;
+  }
+  .switch-track::before{
+    content: ''; position: absolute; width: 15px; height: 15px; left: 2px; top: 2px;
+    background: var(--dim); border-radius: 50%; transition: transform 0.15s, background 0.15s;
+  }
+  .switch input:checked + .switch-track{ background: rgba(92,147,133,0.35); border-color: var(--teal); }
+  .switch input:checked + .switch-track::before{ transform: translateX(17px); background: var(--teal); }
+  .mode-toggle .mode-label{ font-size: 12.5px; color: var(--cream); cursor: pointer; }
+  .mode-toggle .mode-sub{ font-size: 11px; color: var(--dim); }
+
+  body.simple-mode .advanced-control{ display: none !important; }
+
+  .mutate-row{ display: flex; align-items: center; gap: 10px; margin-top: 14px; }
+  .mutate-row input[type="checkbox"]{ width: 16px; height: 16px; accent-color: var(--brass); }
+  .mutate-row span{ font-size: 12px; color: var(--dim); }
+
+  /* transport */
+  .transport{ display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+  .play-btn{
+    background: var(--brass);
+    color: #201b12;
+    border: none;
+    border-radius: 8px;
+    padding: 13px 26px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    min-width: 110px;
+    transition: background 0.12s, transform 0.05s;
+  }
+  .play-btn:hover{ background: var(--brass-bright); }
+  .play-btn:active{ transform: scale(0.97); }
+  .play-btn.playing{ background: var(--teal); }
+
+  .tempo{ flex: 1; min-width: 160px; }
+  .tempo label, .vol-control label{ font-size: 11px; color: var(--dim); display:flex; justify-content: space-between; margin-bottom: 6px; }
+  .tempo label .val, .vol-control label .val{ font-family: 'JetBrains Mono', monospace; color: var(--brass-bright); }
+  .vol-control{ flex: 1; min-width: 160px; }
+
+  input[type="range"]{
+    -webkit-appearance: none;
+    width: 100%;
+    height: 4px;
+    background: var(--led-off);
+    border-radius: 2px;
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb{
+    -webkit-appearance: none;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--accent, var(--brass-bright));
+    border: 2px solid #201b12;
+    cursor: pointer;
+    margin-top: -1px;
+  }
+  input[type="range"]::-moz-range-thumb{
+    width: 14px; height: 14px; border-radius: 50%;
+    background: var(--accent, var(--brass-bright));
+    border: 2px solid #201b12;
+    cursor: pointer;
+  }
+
+  select{
+    background: var(--led-off);
+    color: var(--cream);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 8px 9px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 12.5px;
+    cursor: pointer;
+    width: 100%;
+  }
+
+  .steps{ display: flex; gap: 6px; flex-wrap: wrap; min-height: 22px; align-items: center; }
+  .led{
+    width: 13px; height: 13px; border-radius: 50%;
+    background: var(--led-off); border: 1px solid var(--line);
+    transition: background 0.05s, box-shadow 0.05s;
+  }
+  .led.on{ background: var(--accent, var(--led-on)); box-shadow: 0 0 8px 1px var(--accent-glow, rgba(232,169,74,0.7)); }
+  .led.skip{ background: var(--led-skip); }
+
+  .readout{ margin-top: 6px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--dim); min-height: 16px; }
+  .readout .note{ color: var(--accent, var(--brass-bright)); }
+
+  /* layers */
+  #layers{ display: flex; flex-direction: column; gap: 14px; margin-bottom: 14px; }
+
+  .layer-panel{
+    background: linear-gradient(180deg, var(--panel-raised), var(--panel));
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--accent, var(--brass));
+    border-radius: 10px;
+    padding: 18px 20px;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.03) inset, 0 8px 24px rgba(0,0,0,0.25);
+  }
+
+  .layer-head{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .layer-name{
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--accent, var(--cream));
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .layer-name .dot{ width: 8px; height: 8px; border-radius: 50%; background: var(--accent, var(--brass)); }
+
+  .layer-actions{ display: flex; gap: 6px; }
+  .chip-btn{
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    padding: 5px 9px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: border-color 0.12s, color 0.12s, background 0.12s;
+  }
+  .chip-btn:hover{ border-color: var(--accent, var(--brass)); color: var(--cream); }
+  .chip-btn.on{ background: var(--accent, var(--brass)); color: #201b12; border-color: var(--accent, var(--brass)); font-weight:600; }
+  .chip-btn.danger:hover{ border-color: var(--danger); color: var(--danger); }
+
+  .wave-group{ display: flex; gap: 6px; }
+  .wave-btn{
+    flex: 1;
+    background: var(--led-off);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 8px 4px 5px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--dim);
+    transition: border-color 0.12s, color 0.12s, background 0.12s;
+  }
+  .wave-btn svg{ display:block; overflow: visible; }
+  .wave-btn.active{ background: var(--accent, var(--brass)); border-color: var(--accent, var(--brass)); color: #201b12; }
+  .wave-btn:hover:not(.active){ border-color: var(--accent, var(--brass)); color: var(--cream); }
+
+  .step-group{ display: flex; align-items: center; gap: 8px; }
+  .step-btn{
+    width: 24px; height: 24px;
+    border-radius: 5px;
+    border: 1px solid var(--line);
+    background: var(--led-off);
+    color: var(--cream);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .step-btn:hover{ border-color: var(--accent, var(--brass)); }
+  .step-val{ font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: var(--cream); min-width: 20px; text-align:center; }
+
+  .layer-grid{
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px 18px;
+  }
+  .lcontrol{ display: flex; flex-direction: column; gap: 7px; }
+  .lcontrol label{
+    font-size: 10.5px;
+    color: var(--dim);
+    display: flex;
+    justify-content: space-between;
+    letter-spacing: 0.2px;
+  }
+  .lcontrol label .val{ font-family: 'JetBrains Mono', monospace; color: var(--accent, var(--brass-bright)); }
+
+  .section-sub-label{
+    font-size: 10.5px;
+    color: var(--dim);
+    letter-spacing: 0.3px;
+    margin: 16px 0 8px;
+  }
+  .stack-row{ display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; }
+  .stack-chips{ display: flex; flex-wrap: wrap; gap: 6px; }
+  .stack-oct{ display: flex; gap: 6px; }
+
+  .layer-foot{ margin-top: 14px; }
+
+  .add-layer-btn{
+    width: 100%;
+    background: transparent;
+    border: 1.5px dashed var(--line);
+    color: var(--dim);
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 13px;
+    padding: 13px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: border-color 0.12s, color 0.12s;
+  }
+  .add-layer-btn:hover{ border-color: var(--brass); color: var(--cream); }
+  .add-layer-btn:disabled{ opacity: 0.4; cursor: not-allowed; }
+
+  @media (max-width: 620px){
+    .layer-grid{ grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<div class="unit">
+  <div class="header">
+    <h1>Arpeggiator</h1>
+    <p>shared chord, layered instruments</p>
+  </div>
+
+  <p class="help-text">Pick a chord below, press <strong>Play</strong>, then try changing the Pattern and Rate on the layer
+  panel to hear how the arpeggio changes. Everything updates live while it's playing, so it's safe to just click around.</p>
+
+  <div class="mode-toggle">
+    <label class="switch">
+      <input type="checkbox" id="modeToggle">
+      <span class="switch-track"></span>
+    </label>
+    <label for="modeToggle" class="mode-label">Show advanced sound-design controls</label>
+    <span class="mode-sub">(waveform, detune, filter, note-stacking — off by default to keep things simple)</span>
+  </div>
+
+  <div class="panel">
+    <div class="section-label"><span>CHORD</span><span id="poolCount">3 notes</span></div>
+    <div class="chord-chooser">
+      <div class="chooser-label">1. Pick a root note</div>
+      <div class="root-row" id="rootRow"></div>
+      <div class="chooser-label">2. Pick a chord type</div>
+      <div class="quality-row" id="qualityRow"></div>
+      <div class="chord-name-readout" id="chordNameReadout">C major</div>
+    </div>
+
+    <div class="chooser-label" title="These are the exact notes the arpeggiator will play. Click any note to add or remove it from the chord — handy for building your own custom voicing.">3. Fine-tune the notes (optional) &mdash; click a key to add or remove it</div>
+    <div class="keys" id="keys"></div>
+
+    <div class="mutate-row">
+      <input type="checkbox" id="mutate" title="When on, the chord occasionally gains or loses one note on its own while playing, so the arpeggio slowly evolves instead of repeating forever.">
+      <span>auto-evolve: let the chord drift on its own over time</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="section-label"><span>TRANSPORT</span></div>
+    <div class="transport">
+      <button class="play-btn" id="playBtn" title="Start or stop all layers together.">Play</button>
+      <div class="tempo">
+        <label>Tempo <span class="val" id="bpmVal">108 bpm</span></label>
+        <input type="range" id="bpm" min="40" max="220" value="108" title="Overall speed of the arpeggio, in beats per minute.">
+      </div>
+      <div class="vol-control">
+        <label>Master volume <span class="val" id="masterVolVal">80%</span></label>
+        <input type="range" id="masterVol" min="0" max="100" value="80" title="Overall loudness of everything combined.">
+      </div>
+    </div>
+  </div>
+
+  <div id="layers"></div>
+
+  <button class="add-layer-btn" id="addLayerBtn" title="A layer is its own instrument playing the same chord with its own pattern, speed, and sound. Add a few to build up a fuller arpeggio.">+ add another instrument (layer)</button>
+</div>
+
+<script>
+// ---------------------------------------------------------------------------
+// shared note pool
+// ---------------------------------------------------------------------------
+const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const BASE_OCTAVE = 4;
+
+let activeNotes = new Set([0,4,7]); // C E G
+let noteOrder = [0,4,7];
+
+const keysEl = document.getElementById('keys');
+NOTE_NAMES.forEach((name, pc) => {
+  const btn = document.createElement('div');
+  btn.className = 'key' + (activeNotes.has(pc) ? ' active' : '');
+  btn.textContent = name;
+  btn.dataset.pc = pc;
+  btn.addEventListener('click', () => toggleNote(pc, btn));
+  keysEl.appendChild(btn);
+});
+
+function refreshKeyUI(){
+  document.querySelectorAll('.key').forEach(k => {
+    const pc = Number(k.dataset.pc);
+    k.classList.toggle('active', activeNotes.has(pc));
+  });
+  document.getElementById('poolCount').textContent =
+    activeNotes.size + (activeNotes.size === 1 ? ' note' : ' notes');
+}
+
+function toggleNote(pc, btn){
+  if(activeNotes.has(pc)){
+    if(activeNotes.size <= 1) return;
+    activeNotes.delete(pc);
+    noteOrder = noteOrder.filter(p => p !== pc);
+  } else {
+    activeNotes.add(pc);
+    noteOrder.push(pc);
+  }
+  refreshKeyUI();
+  rebuildAllSequences();
+  const readout = document.getElementById('chordNameReadout');
+  if(readout) readout.textContent = 'custom chord';
+}
+
+function setActiveNotes(pcs){
+  activeNotes = new Set(pcs);
+  noteOrder = [...pcs];
+  refreshKeyUI();
+  rebuildAllSequences();
+}
+
+// ---------------------------------------------------------------------------
+// chord picker: root note + chord quality -> note pool
+// ---------------------------------------------------------------------------
+const CHORD_QUALITIES = [
+  { label: 'Major',        title: 'The classic bright, happy-sounding triad.',                 intervals: [0,4,7] },
+  { label: 'Minor',        title: 'The classic darker, sadder-sounding triad.',                 intervals: [0,3,7] },
+  { label: '7',            title: 'Dominant 7th \u2014 bluesy, wants to resolve somewhere.',    intervals: [0,4,7,10] },
+  { label: 'Maj7',         title: 'Major 7th \u2014 lush, dreamy, jazzy.',                       intervals: [0,4,7,11] },
+  { label: 'Min7',         title: 'Minor 7th \u2014 mellow, smooth, jazzy.',                     intervals: [0,3,7,10] },
+  { label: 'Sus2',         title: 'Suspended 2nd \u2014 open, unresolved, airy.',                intervals: [0,2,7] },
+  { label: 'Sus4',         title: 'Suspended 4th \u2014 open, unresolved, wants to fall to major/minor.', intervals: [0,5,7] },
+  { label: 'Add9',         title: 'Major triad plus a 9th \u2014 sparkly, modern.',              intervals: [0,4,7,2] },
+  { label: '6',            title: 'Major 6th \u2014 warm, retro, a little jazzy.',               intervals: [0,4,7,9] },
+  { label: 'Min6',         title: 'Minor 6th \u2014 moody, cinematic.',                          intervals: [0,3,7,9] },
+  { label: 'Dim',          title: 'Diminished \u2014 tense, unstable.',                          intervals: [0,3,6] },
+  { label: 'Dim7',         title: 'Fully diminished 7th \u2014 very tense, symmetrical.',        intervals: [0,3,6,9] },
+  { label: 'Aug',          title: 'Augmented \u2014 dreamy, ambiguous, unsettled.',              intervals: [0,4,8] },
+  { label: 'm7\u266d5',    title: 'Half-diminished 7th \u2014 dark, jazzy, tense.',              intervals: [0,3,6,10] },
+];
+
+let selectedRoot = 0;   // pitch class, 0 = C
+let selectedQuality = 0; // index into CHORD_QUALITIES, 0 = Major
+
+function applyChordChoice(){
+  const q = CHORD_QUALITIES[selectedQuality];
+  const pcs = q.intervals.map(iv => (selectedRoot + iv) % 12);
+  setActiveNotes(pcs);
+  document.getElementById('chordNameReadout').textContent = NOTE_NAMES[selectedRoot] + ' ' + q.label.toLowerCase();
+}
+
+const rootRowEl = document.getElementById('rootRow');
+NOTE_NAMES.forEach((name, pc) => {
+  const btn = document.createElement('div');
+  btn.className = 'root-btn' + (pc === selectedRoot ? ' active' : '');
+  btn.textContent = name;
+  btn.dataset.pc = pc;
+  btn.addEventListener('click', () => {
+    selectedRoot = pc;
+    rootRowEl.querySelectorAll('.root-btn').forEach(b => b.classList.toggle('active', Number(b.dataset.pc) === pc));
+    applyChordChoice();
+  });
+  rootRowEl.appendChild(btn);
+});
+
+const qualityRowEl = document.getElementById('qualityRow');
+CHORD_QUALITIES.forEach((q, i) => {
+  const btn = document.createElement('div');
+  btn.className = 'quality-btn' + (i === selectedQuality ? ' active' : '');
+  btn.textContent = q.label;
+  btn.title = q.title;
+  btn.dataset.i = i;
+  btn.addEventListener('click', () => {
+    selectedQuality = i;
+    qualityRowEl.querySelectorAll('.quality-btn').forEach(b => b.classList.toggle('active', Number(b.dataset.i) === i));
+    applyChordChoice();
+  });
+  qualityRowEl.appendChild(btn);
+});
+
+function maybeMutatePool(){
+  if(!document.getElementById('mutate').checked) return;
+  if(Math.random() > 0.35) return;
+  if(activeNotes.size >= 6){
+    const arr = [...activeNotes];
+    const remove = arr[Math.floor(Math.random()*arr.length)];
+    if(activeNotes.size > 1){
+      activeNotes.delete(remove);
+      noteOrder = noteOrder.filter(p => p !== remove);
+    }
+  } else {
+    const candidates = NOTE_NAMES.map((_,pc)=>pc).filter(pc => !activeNotes.has(pc));
+    if(candidates.length){
+      const add = candidates[Math.floor(Math.random()*candidates.length)];
+      activeNotes.add(add);
+      noteOrder.push(add);
+    }
+  }
+  refreshKeyUI();
+  layers.forEach(l => { l.currentSeq = buildLayerSequence(l); });
+}
+
+// ---------------------------------------------------------------------------
+// waveform icons
+// ---------------------------------------------------------------------------
+const WAVE_ICONS = {
+  sine: '<svg width="26" height="14" viewBox="0 0 26 14"><path d="M1,7 C4,1 8,1 11,7 C14,13 18,13 21,7 C22.5,4 23.5,4 25,7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  triangle: '<svg width="26" height="14" viewBox="0 0 26 14"><polyline points="1,11 7,2 14,11 20,2 25,10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  sawtooth: '<svg width="26" height="14" viewBox="0 0 26 14"><polyline points="1,11 1,11 9,2 9,11 17,2 17,11 25,2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  square: '<svg width="26" height="14" viewBox="0 0 26 14"><polyline points="1,11 1,2 9,2 9,11 17,11 17,2 25,2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+};
+const WAVE_ORDER = ['sine','triangle','sawtooth','square'];
+
+const STACK_INTERVALS = [
+  { label: 'm3', value: 3 },
+  { label: 'M3', value: 4 },
+  { label: 'P4', value: 5 },
+  { label: 'P5', value: 7 },
+  { label: 'm7', value: 10 },
+  { label: 'M7', value: 11 },
+  { label: '8ve', value: 12 },
+];
+const RANDOM_STACK_PALETTE = [3,4,5,7,10,11,12,-5,-7,-12];
+
+// ---------------------------------------------------------------------------
+// audio graph
+// ---------------------------------------------------------------------------
+const masterVolume = new Tone.Volume(-4).toDestination();
+
+const LAYER_COLORS = [
+  { accent: '#e0a458', glow: 'rgba(224,164,88,0.7)' },
+  { accent: '#5fa8a0', glow: 'rgba(95,168,160,0.7)' },
+  { accent: '#c97064', glow: 'rgba(201,112,100,0.7)' },
+  { accent: '#8b7fc7', glow: 'rgba(139,127,199,0.7)' },
+  { accent: '#c4a83a', glow: 'rgba(196,168,58,0.7)' },
+];
+
+let layers = [];
+let layerIdCounter = 0;
+let isPlaying = false;
+const MAX_LAYERS = 5;
+
+function dbFromLinear(v){ // v: 0-1 -> dB, -Infinity at 0
+  if(v <= 0) return -Infinity;
+  return Tone.gainToDb(v);
+}
+
+function makeLayer(config){
+  const id = layerIdCounter++;
+  const color = LAYER_COLORS[layers.length % LAYER_COLORS.length];
+
+  const filter = new Tone.Filter(config.cutoff, 'lowpass', -24);
+  filter.Q.value = config.resonance;
+
+  const gain = new Tone.Gain(config.volume);
+  gain.connect(masterVolume);
+  filter.connect(gain);
+
+  const synth = new Tone.PolySynth(Tone.Synth, {
+    oscillator: { type: 'fat' + config.waveform, count: config.voices, spread: config.detune },
+    envelope: { attack: 0.004, decay: 0.12, sustain: 0.6, release: 0.15 }
+  });
+  synth.connect(filter);
+
+  const layer = {
+    id, color,
+    name: 'Layer ' + (layers.length + 1),
+    waveform: config.waveform,
+    voices: config.voices,
+    detune: config.detune,
+    cutoff: config.cutoff,
+    resonance: config.resonance,
+    pattern: config.pattern,
+    rate: config.rate,
+    octaves: config.octaves,
+    octaveOffset: config.octaveOffset,
+    gate: config.gate,
+    probability: config.probability,
+    volume: config.volume,
+    stackIntervals: new Set(config.stackIntervals || []),
+    octaveDouble: {
+      down: !!(config.octaveDouble && config.octaveDouble.down),
+      up: !!(config.octaveDouble && config.octaveDouble.up)
+    },
+    stackProbability: config.stackProbability || 0,
+    muted: false,
+    solo: false,
+    synth, filter, gain,
+    loop: null,
+    stepIndex: 0,
+    currentSeq: []
+  };
+  layer.currentSeq = buildLayerSequence(layer);
+  layers.push(layer);
+  return layer;
+}
+
+function shuffle(arr){
+  const a = [...arr];
+  for(let i = a.length-1; i>0; i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]] = [a[j],a[i]];
+  }
+  return a;
+}
+
+function buildLayerSequence(layer){
+  const sortedActive = [...activeNotes].sort((a,b)=>a-b);
+  let expanded = [];
+  for(let o=0; o<layer.octaves; o++){
+    for(const pc of sortedActive){ expanded.push({pc, oct:o}); }
+  }
+  switch(layer.pattern){
+    case 'down':
+      return [...expanded].reverse();
+    case 'updown': {
+      const down = [...expanded].reverse().slice(1,-1);
+      return [...expanded, ...down];
+    }
+    case 'converge': {
+      const arr = [...expanded];
+      const result = [];
+      let lo = 0, hi = arr.length-1, toggle = true;
+      while(lo <= hi){
+        if(toggle){ result.push(arr[lo]); lo++; }
+        else { result.push(arr[hi]); hi--; }
+        toggle = !toggle;
+      }
+      return result;
+    }
+    case 'asPlayed': {
+      const seq = [];
+      for(let o=0; o<layer.octaves; o++){
+        for(const pc of noteOrder.filter(p => activeNotes.has(p))){ seq.push({pc, oct:o}); }
+      }
+      return seq;
+    }
+    case 'random':
+      return shuffle(expanded);
+    case 'up':
+    default:
+      return expanded;
+  }
+}
+
+function rebuildAllSequences(){
+  layers.forEach(l => {
+    l.currentSeq = buildLayerSequence(l);
+    l.stepIndex = 0;
+    drawLayerSteps(l);
+  });
+}
+
+function buildStackedNotes(layer, baseNoteName){
+  const baseMidi = Tone.Frequency(baseNoteName).toMidi();
+  const midiSet = new Set([baseMidi]);
+  layer.stackIntervals.forEach(iv => midiSet.add(baseMidi + iv));
+  if(layer.octaveDouble.down) midiSet.add(baseMidi - 12);
+  if(layer.octaveDouble.up) midiSet.add(baseMidi + 12);
+  if(Math.random() * 100 < layer.stackProbability){
+    const iv = RANDOM_STACK_PALETTE[Math.floor(Math.random() * RANDOM_STACK_PALETTE.length)];
+    midiSet.add(baseMidi + iv);
+  }
+  return [...midiSet].sort((a,b)=>a-b).map(m => Tone.Frequency(m, 'midi').toNote());
+}
+
+function updateMix(){
+  const anySolo = layers.some(l => l.solo);
+  layers.forEach(l => {
+    const effectivelyMuted = l.muted || (anySolo && !l.solo);
+    l.gain.gain.rampTo(effectivelyMuted ? 0 : l.volume, 0.05);
+  });
+}
+
+function startLayerLoop(layer){
+  layer.loop = new Tone.Loop((time) => {
+    if(layer.pattern === 'random' && layer.stepIndex === 0){
+      layer.currentSeq = buildLayerSequence(layer);
+    }
+    if(layer.currentSeq.length === 0) return;
+
+    const step = layer.currentSeq[layer.stepIndex % layer.currentSeq.length];
+    const played = Math.random()*100 < layer.probability;
+    const interval = Tone.Time(layer.rate).toSeconds();
+    const noteName = NOTE_NAMES[step.pc] + (BASE_OCTAVE + step.oct + layer.octaveOffset);
+
+    let stackedNotes = [noteName];
+    if(played){
+      stackedNotes = buildStackedNotes(layer, noteName);
+      layer.synth.triggerAttackRelease(stackedNotes, interval * layer.gate, time);
+    }
+
+    const idx = layer.stepIndex % layer.currentSeq.length;
+    Tone.Draw.schedule(() => {
+      lightLayerStep(layer, idx, played);
+      const readout = document.getElementById('readout-' + layer.id);
+      if(readout){
+        readout.innerHTML = played
+          ? 'playing <span class="note">' + stackedNotes.join(' \u00b7 ') + '</span>'
+          : '\u2014 step skipped \u2014';
+      }
+    }, time);
+
+    layer.stepIndex++;
+    if(layer.stepIndex % layer.currentSeq.length === 0 && layer === layers[0]){
+      Tone.Draw.schedule(() => maybeMutatePool(), time);
+    }
+  }, layer.rate).start(0);
+}
+
+function stopLayerLoop(layer){
+  if(layer.loop){ layer.loop.dispose(); layer.loop = null; }
+  layer.stepIndex = 0;
+}
+
+// ---------------------------------------------------------------------------
+// layer step LEDs
+// ---------------------------------------------------------------------------
+function drawLayerSteps(layer){
+  const stepsEl = document.getElementById('steps-' + layer.id);
+  if(!stepsEl) return;
+  stepsEl.innerHTML = '';
+  layer.currentSeq.forEach(() => {
+    const led = document.createElement('div');
+    led.className = 'led';
+    stepsEl.appendChild(led);
+  });
+}
+function lightLayerStep(layer, i, played){
+  const stepsEl = document.getElementById('steps-' + layer.id);
+  if(!stepsEl) return;
+  const leds = stepsEl.querySelectorAll('.led');
+  leds.forEach(l => l.classList.remove('on','skip'));
+  if(leds[i]) leds[i].classList.add(played ? 'on' : 'skip');
+}
+
+// ---------------------------------------------------------------------------
+// layer panel rendering
+// ---------------------------------------------------------------------------
+function renderLayerPanel(layer){
+  const panel = document.createElement('div');
+  panel.className = 'layer-panel';
+  panel.id = 'panel-' + layer.id;
+  panel.style.setProperty('--accent', layer.color.accent);
+  panel.style.setProperty('--accent-glow', layer.color.glow);
+
+  panel.innerHTML = `
+    <div class="layer-head">
+      <div class="layer-name"><span class="dot"></span>${layer.name}</div>
+      <div class="layer-actions">
+        <button class="chip-btn" data-action="solo" title="Solo: mutes every other layer so you can hear just this one.">S</button>
+        <button class="chip-btn" data-action="mute" title="Mute: silences this layer without deleting it.">M</button>
+        <button class="chip-btn danger" data-action="delete" title="Remove this layer.">\u2715</button>
+      </div>
+    </div>
+
+    <div class="layer-grid">
+      <div class="lcontrol advanced-control" title="The basic tone color of the synth, before any filtering.">
+        <label>Waveform</label>
+        <div class="wave-group" data-role="waveform">
+          ${WAVE_ORDER.map(w => `<button class="wave-btn${w===layer.waveform?' active':''}" data-wave="${w}" title="${{sine:'Sine \u2014 pure, soft, round.', triangle:'Triangle \u2014 soft but a bit hollow.', sawtooth:'Sawtooth \u2014 bright and buzzy.', square:'Square \u2014 hollow, retro, video-game-like.'}[w]}">${WAVE_ICONS[w]}</button>`).join('')}
+        </div>
+      </div>
+
+      <div class="lcontrol advanced-control" title="Layers this many slightly-detuned copies of the same note on top of each other, for a thicker 'unison' sound. Works together with Detune spread below.">
+        <label>Voices <span class="val" data-role="voicesVal">${layer.voices}</span></label>
+        <div class="step-group">
+          <button class="step-btn" data-action="voicesDown">\u2212</button>
+          <span class="step-val" data-role="voicesVal2">${layer.voices}</span>
+          <button class="step-btn" data-action="voicesUp">+</button>
+        </div>
+      </div>
+
+      <div class="lcontrol advanced-control" title="How far out of tune the extra voices are from each other. 0 = perfectly in tune (thin), higher = wider, chorus-like, detuned.">
+        <label>Detune spread <span class="val" data-role="detuneVal">${layer.detune}c</span></label>
+        <input type="range" data-role="detune" min="0" max="50" value="${layer.detune}">
+      </div>
+
+      <div class="lcontrol advanced-control" title="Acts like a tone knob. Lower = darker, muffled. Higher = brighter, more treble.">
+        <label>Cutoff <span class="val" data-role="cutoffVal">${layer.cutoff} Hz</span></label>
+        <input type="range" data-role="cutoff" min="200" max="9000" step="10" value="${layer.cutoff}">
+      </div>
+
+      <div class="lcontrol advanced-control" title="Boosts the frequencies right around the cutoff point. Higher values give a sharper, more 'synthy' or nasal edge.">
+        <label>Resonance <span class="val" data-role="resVal">${layer.resonance}</span></label>
+        <input type="range" data-role="resonance" min="0.1" max="18" step="0.1" value="${layer.resonance}">
+      </div>
+
+      <div class="lcontrol" title="The order this layer steps through the chord's notes.">
+        <label>Pattern</label>
+        <select data-role="pattern">
+          <option value="up">Up \u2014 low to high</option>
+          <option value="down">Down \u2014 high to low</option>
+          <option value="updown">Up / Down \u2014 bounces back and forth</option>
+          <option value="converge">Converge \u2014 outside notes in</option>
+          <option value="asPlayed">As Toggled \u2014 the order you picked the notes</option>
+          <option value="random">Random \u2014 shuffled each time round</option>
+        </select>
+      </div>
+
+      <div class="lcontrol" title="How fast this layer plays notes. 1/4 is slowest, 1/32 is fastest. 'Triplet' rates give a swung, three-against-two feel.">
+        <label>Rate</label>
+        <select data-role="rate">
+          <option value="4n">1/4</option>
+          <option value="8n">1/8</option>
+          <option value="8t">1/8 triplet</option>
+          <option value="16n">1/16</option>
+          <option value="16t">1/16 triplet</option>
+          <option value="32n">1/32</option>
+        </select>
+      </div>
+
+      <div class="lcontrol" title="How many octaves the pattern spans before it loops back to the start. Higher = a longer, more sweeping run.">
+        <label>Octave range <span class="val" data-role="octVal">${layer.octaves}</span></label>
+        <div class="step-group">
+          <button class="step-btn" data-action="octDown">\u2212</button>
+          <span class="step-val" data-role="octVal2">${layer.octaves}</span>
+          <button class="step-btn" data-action="octUp">+</button>
+        </div>
+      </div>
+
+      <div class="lcontrol" title="Shifts this whole layer up or down by octaves. Useful for turning one layer into a low bass line and another into a high sparkle, using the same chord.">
+        <label>Octave offset <span class="val" data-role="offsetVal">${layer.octaveOffset > 0 ? '+' : ''}${layer.octaveOffset}</span></label>
+        <div class="step-group">
+          <button class="step-btn" data-action="offsetDown">\u2212</button>
+          <span class="step-val" data-role="offsetVal2">${layer.octaveOffset > 0 ? '+' : ''}${layer.octaveOffset}</span>
+          <button class="step-btn" data-action="offsetUp">+</button>
+        </div>
+      </div>
+
+      <div class="lcontrol" title="How long each note rings out, as a percentage of the step length. Low = short, plucky, staccato. High = smooth, overlapping, legato.">
+        <label>Gate <span class="val" data-role="gateVal">${Math.round(layer.gate*100)}%</span></label>
+        <input type="range" data-role="gate" min="10" max="100" value="${Math.round(layer.gate*100)}">
+      </div>
+
+      <div class="lcontrol" title="The chance that each step actually plays a note. Below 100%, some steps go silent, creating gaps and syncopation.">
+        <label>Probability <span class="val" data-role="probVal">${layer.probability}%</span></label>
+        <input type="range" data-role="probability" min="0" max="100" value="${layer.probability}">
+      </div>
+
+      <div class="lcontrol" title="This layer's loudness relative to the other layers.">
+        <label>Volume <span class="val" data-role="volVal">${Math.round(layer.volume*100)}%</span></label>
+        <input type="range" data-role="volume" min="0" max="100" value="${Math.round(layer.volume*100)}">
+      </div>
+    </div>
+
+    <div class="advanced-control">
+      <div class="section-sub-label" title="Adds extra notes on top of every note this layer plays, for a fuller, richer sound.">STACK &mdash; layer extra notes on top of each step</div>
+      <div class="stack-row">
+        <div class="stack-chips" data-role="intervals">
+          ${STACK_INTERVALS.map(iv => `<button class="chip-btn${layer.stackIntervals.has(iv.value) ? ' on' : ''}" data-interval="${iv.value}" title="Always add a note a ${iv.label} above whatever note is playing.">${iv.label}</button>`).join('')}
+        </div>
+        <div class="stack-oct">
+          <button class="chip-btn${layer.octaveDouble.down ? ' on' : ''}" data-action="octDownDouble" title="Always double each note one octave lower.">-8ve</button>
+          <button class="chip-btn${layer.octaveDouble.up ? ' on' : ''}" data-action="octUpDouble" title="Always double each note one octave higher.">+8ve</button>
+        </div>
+      </div>
+      <div class="lcontrol" style="margin-top:10px; max-width: 260px;" title="Occasionally throws in a random extra interval for a surprising, less predictable texture.">
+        <label>Random extra note <span class="val" data-role="stackProbVal">${layer.stackProbability}%</span></label>
+        <input type="range" data-role="stackProbability" min="0" max="100" value="${layer.stackProbability}">
+      </div>
+    </div>
+
+    <div class="layer-foot">
+      <div class="steps" id="steps-${layer.id}"></div>
+      <div class="readout" id="readout-${layer.id}">\u2014</div>
+    </div>
+  `;
+
+  // set select defaults
+  panel.querySelector('[data-role="pattern"]').value = layer.pattern;
+  panel.querySelector('[data-role="rate"]').value = layer.rate;
+
+  // waveform buttons
+  panel.querySelectorAll('.wave-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      layer.waveform = btn.dataset.wave;
+      layer.synth.set({ oscillator: { type: 'fat' + layer.waveform } });
+      panel.querySelectorAll('.wave-btn').forEach(b => b.classList.toggle('active', b === btn));
+    });
+  });
+
+  // voices stepper
+  panel.querySelector('[data-action="voicesDown"]').addEventListener('click', () => {
+    layer.voices = Math.max(1, layer.voices - 1);
+    layer.synth.set({ oscillator: { count: layer.voices } });
+    panel.querySelector('[data-role="voicesVal"]').textContent = layer.voices;
+    panel.querySelector('[data-role="voicesVal2"]').textContent = layer.voices;
+  });
+  panel.querySelector('[data-action="voicesUp"]').addEventListener('click', () => {
+    layer.voices = Math.min(5, layer.voices + 1);
+    layer.synth.set({ oscillator: { count: layer.voices } });
+    panel.querySelector('[data-role="voicesVal"]').textContent = layer.voices;
+    panel.querySelector('[data-role="voicesVal2"]').textContent = layer.voices;
+  });
+
+  // detune
+  panel.querySelector('[data-role="detune"]').addEventListener('input', (e) => {
+    layer.detune = Number(e.target.value);
+    layer.synth.set({ oscillator: { spread: layer.detune } });
+    panel.querySelector('[data-role="detuneVal"]').textContent = layer.detune + 'c';
+  });
+
+  // cutoff
+  panel.querySelector('[data-role="cutoff"]').addEventListener('input', (e) => {
+    layer.cutoff = Number(e.target.value);
+    layer.filter.frequency.rampTo(layer.cutoff, 0.03);
+    panel.querySelector('[data-role="cutoffVal"]').textContent = layer.cutoff + ' Hz';
+  });
+
+  // resonance
+  panel.querySelector('[data-role="resonance"]').addEventListener('input', (e) => {
+    layer.resonance = Number(e.target.value);
+    layer.filter.Q.value = layer.resonance;
+    panel.querySelector('[data-role="resVal"]').textContent = layer.resonance;
+  });
+
+  // pattern
+  panel.querySelector('[data-role="pattern"]').addEventListener('change', (e) => {
+    layer.pattern = e.target.value;
+    layer.currentSeq = buildLayerSequence(layer);
+    layer.stepIndex = 0;
+    drawLayerSteps(layer);
+  });
+
+  // rate
+  panel.querySelector('[data-role="rate"]').addEventListener('change', (e) => {
+    layer.rate = e.target.value;
+    if(isPlaying){ stopLayerLoop(layer); startLayerLoop(layer); }
+  });
+
+  // octave range
+  panel.querySelector('[data-action="octDown"]').addEventListener('click', () => {
+    layer.octaves = Math.max(1, layer.octaves - 1);
+    panel.querySelector('[data-role="octVal"]').textContent = layer.octaves;
+    panel.querySelector('[data-role="octVal2"]').textContent = layer.octaves;
+    layer.currentSeq = buildLayerSequence(layer);
+    layer.stepIndex = 0;
+    drawLayerSteps(layer);
+  });
+  panel.querySelector('[data-action="octUp"]').addEventListener('click', () => {
+    layer.octaves = Math.min(4, layer.octaves + 1);
+    panel.querySelector('[data-role="octVal"]').textContent = layer.octaves;
+    panel.querySelector('[data-role="octVal2"]').textContent = layer.octaves;
+    layer.currentSeq = buildLayerSequence(layer);
+    layer.stepIndex = 0;
+    drawLayerSteps(layer);
+  });
+
+  // octave offset
+  const renderOffset = () => {
+    const text = (layer.octaveOffset > 0 ? '+' : '') + layer.octaveOffset;
+    panel.querySelector('[data-role="offsetVal"]').textContent = text;
+    panel.querySelector('[data-role="offsetVal2"]').textContent = text;
+  };
+  panel.querySelector('[data-action="offsetDown"]').addEventListener('click', () => {
+    layer.octaveOffset = Math.max(-2, layer.octaveOffset - 1);
+    renderOffset();
+  });
+  panel.querySelector('[data-action="offsetUp"]').addEventListener('click', () => {
+    layer.octaveOffset = Math.min(2, layer.octaveOffset + 1);
+    renderOffset();
+  });
+
+  // gate
+  panel.querySelector('[data-role="gate"]').addEventListener('input', (e) => {
+    layer.gate = Number(e.target.value) / 100;
+    panel.querySelector('[data-role="gateVal"]').textContent = e.target.value + '%';
+  });
+
+  // probability
+  panel.querySelector('[data-role="probability"]').addEventListener('input', (e) => {
+    layer.probability = Number(e.target.value);
+    panel.querySelector('[data-role="probVal"]').textContent = e.target.value + '%';
+  });
+
+  // volume
+  panel.querySelector('[data-role="volume"]').addEventListener('input', (e) => {
+    layer.volume = Number(e.target.value) / 100;
+    panel.querySelector('[data-role="volVal"]').textContent = e.target.value + '%';
+    updateMix();
+  });
+
+  // stack: fixed intervals
+  panel.querySelectorAll('[data-interval]').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const iv = Number(chip.dataset.interval);
+      if(layer.stackIntervals.has(iv)){
+        layer.stackIntervals.delete(iv);
+        chip.classList.remove('on');
+      } else {
+        layer.stackIntervals.add(iv);
+        chip.classList.add('on');
+      }
+    });
+  });
+
+  // stack: octave doubling
+  const octDownBtn = panel.querySelector('[data-action="octDownDouble"]');
+  const octUpBtn = panel.querySelector('[data-action="octUpDouble"]');
+  octDownBtn.addEventListener('click', () => {
+    layer.octaveDouble.down = !layer.octaveDouble.down;
+    octDownBtn.classList.toggle('on', layer.octaveDouble.down);
+  });
+  octUpBtn.addEventListener('click', () => {
+    layer.octaveDouble.up = !layer.octaveDouble.up;
+    octUpBtn.classList.toggle('on', layer.octaveDouble.up);
+  });
+
+  // stack: random extra note chance
+  panel.querySelector('[data-role="stackProbability"]').addEventListener('input', (e) => {
+    layer.stackProbability = Number(e.target.value);
+    panel.querySelector('[data-role="stackProbVal"]').textContent = e.target.value + '%';
+  });
+
+  // mute / solo / delete
+  const muteBtn = panel.querySelector('[data-action="mute"]');
+  const soloBtn = panel.querySelector('[data-action="solo"]');
+  muteBtn.addEventListener('click', () => {
+    layer.muted = !layer.muted;
+    muteBtn.classList.toggle('on', layer.muted);
+    updateMix();
+  });
+  soloBtn.addEventListener('click', () => {
+    layer.solo = !layer.solo;
+    soloBtn.classList.toggle('on', layer.solo);
+    updateMix();
+  });
+  panel.querySelector('[data-action="delete"]').addEventListener('click', () => {
+    removeLayer(layer);
+  });
+
+  document.getElementById('layers').appendChild(panel);
+  drawLayerSteps(layer);
+}
+
+function removeLayer(layer){
+  if(layers.length <= 1) return;
+  stopLayerLoop(layer);
+  layer.synth.dispose();
+  layer.filter.dispose();
+  layer.gain.dispose();
+  layers = layers.filter(l => l.id !== layer.id);
+  const panel = document.getElementById('panel-' + layer.id);
+  if(panel) panel.remove();
+  updateMix();
+  document.getElementById('addLayerBtn').disabled = layers.length >= MAX_LAYERS;
+}
+
+function addLayer(){
+  if(layers.length >= MAX_LAYERS) return;
+  const presets = [
+    { waveform: 'sawtooth', voices: 2, detune: 8,  cutoff: 3200, resonance: 1.2, pattern: 'up',      rate: '8n',  octaves: 2, octaveOffset: 0, gate: 0.7, probability: 100, volume: 0.75, stackIntervals: [7], octaveDouble: { down:false, up:false }, stackProbability: 0 },
+    { waveform: 'triangle', voices: 1, detune: 0,  cutoff: 6000, resonance: 0.5, pattern: 'random',  rate: '16n', octaves: 1, octaveOffset: 1, gate: 0.4, probability: 80,  volume: 0.5,  stackIntervals: [],  octaveDouble: { down:false, up:true },  stackProbability: 20 },
+    { waveform: 'square',   voices: 1, detune: 0,  cutoff: 1200, resonance: 3,   pattern: 'down',    rate: '4n',  octaves: 1, octaveOffset: -1,gate: 0.9, probability: 100, volume: 0.55, stackIntervals: [3], octaveDouble: { down:false, up:false }, stackProbability: 0 },
+    { waveform: 'sine',     voices: 3, detune: 15, cutoff: 8000, resonance: 0.3, pattern: 'updown',  rate: '8t',  octaves: 2, octaveOffset: 1, gate: 0.5, probability: 90,  volume: 0.45, stackIntervals: [4,7], octaveDouble: { down:false, up:false }, stackProbability: 10 },
+    { waveform: 'sawtooth', voices: 1, detune: 0,  cutoff: 5000, resonance: 6,   pattern: 'converge',rate: '16t', octaves: 1, octaveOffset: 0, gate: 0.6, probability: 85,  volume: 0.5,  stackIntervals: [],  octaveDouble: { down:true, up:false },  stackProbability: 15 },
+  ];
+  const config = presets[layers.length % presets.length];
+  const layer = makeLayer(config);
+  renderLayerPanel(layer);
+  if(isPlaying) startLayerLoop(layer);
+  document.getElementById('addLayerBtn').disabled = layers.length >= MAX_LAYERS;
+  updateMix();
+}
+
+document.getElementById('addLayerBtn').addEventListener('click', addLayer);
+
+// ---------------------------------------------------------------------------
+// transport
+// ---------------------------------------------------------------------------
+document.getElementById('playBtn').addEventListener('click', async () => {
+  if(!isPlaying){
+    await Tone.start();
+    layers.forEach(l => {
+      l.currentSeq = buildLayerSequence(l);
+      startLayerLoop(l);
+    });
+    Tone.Transport.start();
+    isPlaying = true;
+    document.getElementById('playBtn').textContent = 'Stop';
+    document.getElementById('playBtn').classList.add('playing');
+  } else {
+    Tone.Transport.stop();
+    layers.forEach(l => {
+      stopLayerLoop(l);
+      drawLayerSteps(l);
+      const readout = document.getElementById('readout-' + l.id);
+      if(readout) readout.textContent = '\u2014';
+    });
+    isPlaying = false;
+    document.getElementById('playBtn').textContent = 'Play';
+    document.getElementById('playBtn').classList.remove('playing');
+  }
+});
+
+document.getElementById('bpm').addEventListener('input', (e) => {
+  document.getElementById('bpmVal').textContent = e.target.value + ' bpm';
+  Tone.Transport.bpm.value = Number(e.target.value);
+});
+
+document.getElementById('masterVol').addEventListener('input', (e) => {
+  const pct = Number(e.target.value);
+  document.getElementById('masterVolVal').textContent = pct + '%';
+  masterVolume.volume.rampTo(dbFromLinear(pct/100), 0.05);
+});
+
+Tone.Transport.bpm.value = 108;
+
+document.getElementById('modeToggle').addEventListener('change', (e) => {
+  document.body.classList.toggle('simple-mode', !e.target.checked);
+});
+document.body.classList.add('simple-mode');
+
+// ---------------------------------------------------------------------------
+// initial layers
+// ---------------------------------------------------------------------------
+addLayer();
+</script>
+
+</body>
+</html>
