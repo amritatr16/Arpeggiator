@@ -1160,16 +1160,38 @@ addLayer();
   <h2>Learnings & Ideas</h2>
   <h3>Learnings </h3>
   <h4>Music Theory Basics</h4>
-  <p>Since we’re working with creating music, I began with understanding what notes and chords mean and how frequencies change with octaves. .</p>
-  <p>Consonance and Dissonance: Consonance is when notes blend well together and create a sense of stability while dissonance involves notes that sound clashing and unstable.</p>
+  <p>Since we’re working with creating music, I began with understanding what notes and chords mean and how frequencies change with octaves.<br>
+  Consonance and Dissonance: Consonance is when notes blend well together and create a sense of stability while dissonance involves notes that sound clashing and unstable.</p>
+  
   <h4>What is an Arpeggio?</h4>
   <p>An arpeggio is a chord that is played one note at a time. It is a way of breaking up a chord into separate notes that are played one after the other.</p>
+  
   <h4>Arpeggio Patterns</h4>
-  <p>Up : Lowest note to highest note.
-Down : Highest note to lowest note.
-Converge : Lowest note first, then highest note, working its way to the middle of the chord.
-Diverge : Middle notes first, working its way to the outside of the chord
-Random : Generate a random order of notes.</p>
+  <p>Up : Lowest note to highest note.<br>
+    Down : Highest note to lowest note.<br>
+    Converge : Lowest note first, then highest note, working its way to the middle of the chord.<br>
+    Diverge : Middle notes first, working its way to the outside of the chord<br>
+    Random : Generate a random order of notes.</p>
+  
+  <h4>Arpeggiator</h4>
+  <p>An arpeggiator automates the technique of creating an arpeggio. You give it a chord and it returns an arpeggio of a certain pattern, rate and octave settings that you can control.<br>
+    Adding layers for a single chord has helped create overlapping arpeggios of different settings and patterns for the same chord.</p>
+
+  <h4>Controls and Settings</h4>
+  <p>Pattern: Order in which notes are played<br>
+    Rate: Speed of each step/note<br>
+    Octave range: How many octaves the pattern spans before looping<br>
+    Octave offset: Shifting between octaves<br>
+    Gate: How long each note rings<br>
+    Probability: Chance of each note actually playing<br>
+    Volume: Layer’s volume<br>
+    Waveform: Determining the timbre<br>
+    Resonance: Emphasize frequency near the cutoff<br>
+    Stack: Add extra notes on top of what’s already playing</p>
+
+  <h4>Stochastic Processes and Rule based Generation </h4>
+  <p>A stochastic process refers to when it contains an element of randomness or probability. The arpeggiator becomes stochastic when the note generation includes random note selection and auto-evolving the chords.<br>
+    The process is generative because the system produces the sounds while staying within the constraints of the rules.</p>
   
 </div>
 </body>
