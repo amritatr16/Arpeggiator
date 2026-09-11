@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CrossRoads</title>
+<style>
+  :root{
+    --bg: #0e0b12;
+    --bg2: #17121d;
+    --paper: #ece6da;
+    --paper-dim: #a89f8f;
+    --s0: #d99a44;
+    --s1: #3fa7a0;
+    --s2: #d1436b;
+    --line: rgba(236,230,218,0.14);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--paper);
+    font-family: "Iowan Old Style","Palatino Linotype",Georgia,serif;
+    -webkit-font-smoothing:antialiased;}
+  body{background:
+      radial-gradient(ellipse at 20% -10%, rgba(217,154,68,0.10), transparent 45%),
+      radial-gradient(ellipse at 85% 0%, rgba(209,67,105,0.10), transparent 40%),
+      radial-gradient(ellipse at 50% 100%, rgba(63,167,160,0.08), transparent 45%),
+      var(--bg);
+    min-height:100vh;}
+  .wrap{max-width:920px;margin:0 auto;padding:36px 20px 60px;}
+  header{margin-bottom:22px;}
+  h1{font-size:44px;letter-spacing:0.5px;margin:0;font-weight:500;}
+  .sub{font-family:"Helvetica Neue",Arial,sans-serif;font-size:13px;color:var(--paper-dim);
+    margin-top:6px;letter-spacing:0.02em;}
+  .stage{background:var(--bg2);border:1px solid var(--line);border-radius:4px;padding:20px;margin-top:22px;}
+  canvas{display:block;width:100%;height:auto;}
+  .row{display:flex;gap:18px;flex-wrap:wrap;align-items:center;margin-top:16px;}
+  .lab{font-family:"Helvetica Neue",Arial,sans-serif;font-size:12px;color:var(--paper-dim);
+    display:flex;flex-direction:column;gap:3px;}
+  button{
+    font-family:"Helvetica Neue",Arial,sans-serif;
+    background:transparent;color:var(--paper);border:1px solid var(--line);
+    padding:10px 18px;border-radius:3px;cursor:pointer;font-size:13px;letter-spacing:0.03em;
+    transition:border-color .15s, background .15s;
+  }
+  button:hover{border-color:var(--paper-dim);}
+  button.primary{background:var(--paper);color:var(--bg);border-color:var(--paper);font-weight:600;}
+  button.primary:hover{background:#fff;}
+  .readout{font-family:"Helvetica Neue",Arial,sans-serif;font-size:12px;color:var(--paper-dim);
+    display:flex;gap:22px;flex-wrap:wrap;margin-top:14px;align-items:center;}
+  .readout b{color:var(--paper);font-weight:600;}
+  .dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:5px;vertical-align:middle;}
+  .weights{margin-top:18px;padding-top:16px;border-top:1px solid var(--line);}
+  .weights .row{margin-top:10px;}
+  .wctl{display:flex;flex-direction:column;gap:4px;width:110px;}
+  .wctl input{width:100%;}
+  .wctl.s0 input{accent-color:var(--s0);}
+  .wctl.s1 input{accent-color:var(--s1);}
+  .wctl.s2 input{accent-color:var(--s2);}
+  .mixer{margin-top:26px;display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+  @media(max-width:700px){.mixer{grid-template-columns:repeat(2,1fr);}}
+  @media(max-width:460px){.mixer{grid-template-columns:1fr;}}
+  .ch{background:var(--bg2);border:1px solid var(--line);border-radius:4px;padding:12px 14px;}
+  .ch .name{font-family:"Helvetica Neue",Arial,sans-serif;font-size:12px;letter-spacing:0.03em;
+    display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+  .ch .colordot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:7px;}
+  input[type=range]{width:100%;}
+  .mute{cursor:pointer;color:var(--paper-dim);font-size:11px;border:1px solid var(--line);
+    border-radius:2px;padding:1px 7px;}
+  .mute.off{opacity:0.35;}
+  .field{margin-top:8px;}
+  .field .fl{font-family:"Helvetica Neue",Arial,sans-serif;font-size:10.5px;color:var(--paper-dim);
+    display:flex;justify-content:space-between;}
+  .locks{display:flex;gap:5px;margin-top:8px;}
+  .lockbtn{flex:1;text-align:center;font-size:10.5px;padding:5px 0;border:1px solid var(--line);
+    border-radius:2px;cursor:pointer;font-family:"Helvetica Neue",Arial,sans-serif;color:var(--paper-dim);}
+  .lockbtn.active{background:var(--paper-dim);color:var(--bg);border-color:var(--paper-dim);}
+  footer{margin-top:34px;font-family:"Helvetica Neue",Arial,sans-serif;font-size:12.5px;
+    color:var(--paper-dim);line-height:1.6;border-top:1px solid var(--line);padding-top:18px;}
+  footer b{color:var(--paper);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>CrossRoads</h1>
+    <div class="sub">layers that are never independent of each other</div>
+  </header>
+
+  <div class="stage">
+    <canvas id="viz" width="1600" height="760"></canvas>
+
+    <div class="row">
+      <button class="primary" id="playBtn">Begin</button>
+      <label class="lab">tempo
+        <input type="range" id="tempoSlider" min="70" max="140" value="100">
+      </label>
+      <label class="lab">energy
+        <input type="range" id="energySlider" min="0" max="100" value="45">
+      </label>
+      <button id="reseedBtn">Reseed melody</button>
+      <button id="performBtn">Perform 15-min set</button>
+    </div>
+
+    <div class="weights">
+      <div class="row" style="margin-top:0;">
+        <div class="wctl s0"><span style="font-family:'Helvetica Neue',sans-serif;font-size:11px;color:var(--s0);">I</span>
+          <input type="range" class="gw" data-state="s0" min="0" max="100" value="45"></div>
+        <div class="wctl s1"><span style="font-family:'Helvetica Neue',sans-serif;font-size:11px;color:var(--s1);">II</span>
+          <input type="range" class="gw" data-state="s1" min="0" max="100" value="30"></div>
+        <div class="wctl s2"><span style="font-family:'Helvetica Neue',sans-serif;font-size:11px;color:var(--s2);">III</span>
+          <input type="range" class="gw" data-state="s2" min="0" max="100" value="25"></div>
+        <label class="lab">spread
+          <input type="range" id="spreadSlider" min="0" max="100" value="15">
+        </label>
+      </div>
+    </div>
+
+    <div class="readout">
+      <span><span class="dot" id="roStateDot" style="background:#666"></span>shared state</span>
+      <span>phase <b id="roPhase">—</b></span>
+      <span>spread <b id="roSpread">—</b></span>
+      <span>energy <b id="roEnergy">—</b></span>
+      <span>tempo <b id="roTempo">—</b> bpm</span>
+      <span>elapsed <b id="roTime">0:00</b></span>
+    </div>
+  </div>
+
+  <div class="mixer" id="mixer"></div>
+
+  <footer>
+    <p><b>How it holds together.</b> Six instruments share one pulse clock: a continuous low drone, a
+    hand-drum-style percussion kit plus a four-on-the-floor kick, an arpeggiated bass, a bowed/breath
+    lead voice, a slow pad, and a plucked ostinato. There are three unlabeled tonal/rhythmic states
+    (I, II, III — different scale, meter, and feel), and every 4 bars a Markov chain re-rolls a shared
+    state, biased by the <b>I / II / III</b> weights you set and toward whichever state it was already
+    in. <b>Spread</b> sets how often each individual layer breaks off and rolls its own state instead of
+    following the shared one — at 0 the whole band moves together; turned up, layers can sit in
+    different states and meters at the same time. Nothing here runs on a timer: <b>energy</b> is a fader
+    you set directly (with a little continuous drift built in, so it never sits perfectly still), and
+    each layer below has its own volume, mute, density, and a lock so you can pin it to I, II, III, or
+    leave it on Auto to keep following the chain. The kick now leans four-on-the-floor as energy rises,
+    hi-hats fade in above it, and the bass/pad/drone/lead all get a harder sidechain pump on every kick;
+    past roughly 50% energy the pluck swaps to a detuned supersaw stab. Play it by hand as long as you
+    like, or hit <b>Perform 15-min set</b> to have it conduct itself through an intro, two build/drop
+    pairs, a breakdown, and an outro over 15 minutes — moving the sliders on its own the whole way.</p>
+  </footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const ROOT = 146.83; // fixed tonal anchor under every state
+  const STATES = {
+    s0: { scale:[0,2,4,6,7,9,11], cycle:16, tempoFeel:0.88, color:"#d99a44" },
+    s1: { scale:[0,2,3,5,7,9,10], cycle:9,  tempoFeel:1.00, color:"#3fa7a0" },
+    s2: { scale:[0,1,3,5,7,8,10], cycle:16, tempoFeel:1.18, color:"#d1436b" },
+  };
+  const STATE_KEYS = ["s0","s1","s2"];
+  const THEKA = {
+    s0: [1,.3,.3,.6, .3,.3,.3,.85, .3,.3,.3,.6, .3,.3,.3,.85],
+    s1: [1,.35,.6,.3, .3,.6,.35,.3,.5],
+    s2: [1,.2,.2,.2, .9,.2,.2,.2, 1,.2,.2,.2, .9,.2,.2,.2],
+  };
+  const MACRO_CYCLE = 16; // pulses between shared-state Markov rolls
+
+  function lerp(a,b,f){return a+(b-a)*f;}
+
+  function weightedPick(weights){
+    const keys = Object.keys(weights);
+    const total = keys.reduce((s,k)=>s+Math.max(0,weights[k]),0) || 1;
+    let r = Math.random()*total;
+    for(const k of keys){ r -= Math.max(0,weights[k]); if(r<=0) return k; }
+    return keys[keys.length-1];
+  }
+  function rollState(prev, weights, stickiness){
+    const w = {...weights};
+    w[prev] = (w[prev]||0) + stickiness;
+    return weightedPick(w);
+  }
+  function degreeToFreq(scale, degree, octave){
+    const n = scale.length;
+    const oct = Math.floor(degree/n) + octave;
+    const idx = ((degree%n)+n)%n;
+    return ROOT * Math.pow(2, (scale[idx] + oct*12)/12);
+  }
+  const STEP_OPTIONS = [-2,-1,-1,0,1,1,2,3,-3,0];
+  function nextDegree(cur){ return cur + STEP_OPTIONS[Math.floor(Math.random()*STEP_OPTIONS.length)]; }
+
+  // ---------- audio engine ----------
+  let ctx=null, master=null, compressor=null, reverbSend=null, convolver=null, reverbReturn=null;
+  let layers = {};
+  let running=false;
+  let schedulerId=null;
+  let nextPulseTime=0, pulseIndex=0, startTime=0;
+  let tempo=100, tempoTarget=100;
+  let energyTargetManual=0.45, energy=0.45;
+  let sharedState="s0";
+  let layerOwnState={drone:"s0",perc:"s0",bass:"s0",lead:"s0",pad:"s0",pluck:"s0"};
+  let layerIdentity={drone:"s0",perc:"s0",bass:"s0",lead:"s0",pad:"s0",pluck:"s0"};
+  let layerLock={drone:"auto",perc:"auto",bass:"auto",lead:"auto",pad:"auto",pluck:"auto"};
+  let globalWeights={s0:45,s1:30,s2:25};
+  let spread=0.15;
+  let leadDegree=0, bassDegree=0, pluckDegree=0;
+  let leadOsc=null, leadGainNode=null, leadFilter=null, leadVibratoLFO=null;
+  let droneNodes=null, padNodes=null;
+  let pluckPatternIdx=0;
+  const LOOKAHEAD=0.12, INTERVAL=25;
+
+  function makeImpulse(ctx, seconds, decay){
+    const rate = ctx.sampleRate;
+    const len = Math.floor(rate*seconds);
+    const buf = ctx.createBuffer(2, len, rate);
+    for(let ch=0; ch<2; ch++){
+      const data = buf.getChannelData(ch);
+      for(let i=0;i<len;i++) data[i] = (Math.random()*2-1) * Math.pow(1 - i/len, decay);
+    }
+    return buf;
+  }
+
+  function buildGraph(){
+    ctx = new (window.AudioContext||window.webkitAudioContext)();
+    master = ctx.createGain(); master.gain.value = 0.9;
+    compressor = ctx.createDynamicsCompressor();
+    compressor.threshold.value=-14; compressor.knee.value=18; compressor.ratio.value=3.2;
+    compressor.attack.value=0.006; compressor.release.value=0.25;
+    master.connect(compressor); compressor.connect(ctx.destination);
+
+    convolver = ctx.createConvolver();
+    convolver.buffer = makeImpulse(ctx, 3.2, 2.6);
+    reverbReturn = ctx.createGain(); reverbReturn.gain.value = 0.85;
+    convolver.connect(reverbReturn); reverbReturn.connect(master);
+    reverbSend = ctx.createGain(); reverbSend.gain.value=1;
+    reverbSend.connect(convolver);
+
+    const names = ["drone","perc","bass","lead","pad","pluck"];
+    const sendAmt = {drone:0.5, perc:0.22, bass:0.18, lead:0.4, pad:0.45, pluck:0.32};
+    layers = {};
+    for(const n of names){
+      const duck = ctx.createGain(); duck.gain.value=1;
+      const vol = ctx.createGain(); vol.gain.value = 0.8;
+      duck.connect(vol);
+      vol.connect(master);
+      const send = ctx.createGain(); send.gain.value = sendAmt[n];
+      duck.connect(send); send.connect(reverbSend);
+      layers[n] = { duck, vol, mute:false, density:1.0,
+        baseVol: n==="drone"?0.55: n==="pad"?0.5: n==="perc"?0.7: 0.65 };
+      vol.gain.value = layers[n].baseVol;
+    }
+  }
+
+  function duck(node, amount, dur){
+    const g = node.gain;
+    const now = ctx.currentTime;
+    g.cancelScheduledValues(now);
+    g.setValueAtTime(g.value, now);
+    g.linearRampToValueAtTime(1*(1-amount), now+0.018);
+    g.linearRampToValueAtTime(1, now+dur);
+  }
+
+  function pluckVoice(dest, freq, time, dur, gainAmt, wave){
+    const osc = ctx.createOscillator(); osc.type = wave||"sawtooth"; osc.frequency.setValueAtTime(freq,time);
+    const filt = ctx.createBiquadFilter(); filt.type="bandpass"; filt.frequency.setValueAtTime(freq*2.2,time);
+    filt.Q.value=3.2;
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.0001,time);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002,gainAmt), time+0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, time+dur);
+    osc.connect(filt); filt.connect(g); g.connect(dest);
+    osc.start(time); osc.stop(time+dur+0.05);
+  }
+
+  function tablaVoice(dest, time, accent, energyNow, density){
+    if(Math.random() < (0.55 + accent*0.3)*density){
+      const osc = ctx.createOscillator(); osc.type="sine";
+      osc.frequency.setValueAtTime(130+accent*40,time);
+      osc.frequency.exponentialRampToValueAtTime(55, time+0.09);
+      const g = ctx.createGain();
+      const amt = (0.35+accent*0.5) * (0.6+energyNow*0.5);
+      g.gain.setValueAtTime(amt,time);
+      g.gain.exponentialRampToValueAtTime(0.0001, time+0.22+accent*0.1);
+      osc.connect(g); g.connect(dest);
+      osc.start(time); osc.stop(time+0.35);
+    }
+    if(Math.random() < (0.4 + (1-accent)*0.4)*density){
+      const bufSize = Math.floor(ctx.sampleRate*0.06);
+      const buf = ctx.createBuffer(1,bufSize,ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for(let i=0;i<bufSize;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/bufSize,3);
+      const src = ctx.createBufferSource(); src.buffer=buf;
+      const filt = ctx.createBiquadFilter(); filt.type="bandpass";
+      filt.frequency.value = 2600+accent*1200; filt.Q.value=1.4;
+      const g = ctx.createGain();
+      const amt = (0.14+accent*0.22) * (0.6+energyNow*0.5);
+      g.gain.setValueAtTime(amt, time);
+      src.connect(filt); filt.connect(g); g.connect(dest);
+      src.start(time);
+    }
+  }
+
+  function hihatVoice(dest, time, open, energyNow){
+    const bufSize = Math.floor(ctx.sampleRate*(open?0.22:0.045));
+    const buf = ctx.createBuffer(1,bufSize,ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for(let i=0;i<bufSize;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/bufSize, open?1.6:4.2);
+    const src = ctx.createBufferSource(); src.buffer=buf;
+    const filt = ctx.createBiquadFilter(); filt.type="highpass"; filt.frequency.value=7500; filt.Q.value=0.7;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime((open?0.09:0.12)*(0.45+energyNow*0.75), time);
+    src.connect(filt); filt.connect(g); g.connect(dest);
+    src.start(time);
+  }
+
+  function stabVoice(dest, freq, time, dur, gainAmt){
+    const detunes=[-9,0,9];
+    const filt = ctx.createBiquadFilter(); filt.type="lowpass";
+    filt.frequency.setValueAtTime(freq*7+900,time);
+    filt.frequency.exponentialRampToValueAtTime(freq*2+250, time+dur*0.75);
+    filt.Q.value=2.2;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001,time);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002,gainAmt), time+0.007);
+    g.gain.exponentialRampToValueAtTime(0.0001, time+dur);
+    filt.connect(g); g.connect(dest);
+    const oscs=[];
+    detunes.forEach(dt=>{
+      const o=ctx.createOscillator(); o.type="sawtooth"; o.frequency.setValueAtTime(freq,time); o.detune.value=dt;
+      o.connect(filt); o.start(time); o.stop(time+dur+0.05); oscs.push(o);
+    });
+    return oscs;
+  }
+
+  function kickVoice(dest, time, amt){
+    const osc = ctx.createOscillator(); osc.type="sine";
+    osc.frequency.setValueAtTime(150,time);
+    osc.frequency.exponentialRampToValueAtTime(48,time+0.09);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(amt,time);
+    g.gain.exponentialRampToValueAtTime(0.0001, time+0.32);
+    osc.connect(g); g.connect(dest);
+    osc.start(time); osc.stop(time+0.4);
+  }
+
+  function bassVoice(dest, time, freq, dur, amt){
+    const osc = ctx.createOscillator(); osc.type="sawtooth"; osc.frequency.setValueAtTime(freq,time);
+    const filt = ctx.createBiquadFilter(); filt.type="lowpass";
+    filt.frequency.setValueAtTime(freq*4+200,time);
+    filt.frequency.exponentialRampToValueAtTime(freq*1.3+60, time+dur*0.8);
+    filt.Q.value=2;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001,time);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002,amt), time+0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, time+dur);
+    osc.connect(filt); filt.connect(g); g.connect(dest);
+    osc.start(time); osc.stop(time+dur+0.05);
+  }
+
+  function ensureLead(){
+    if(leadOsc) return;
+    leadOsc = ctx.createOscillator(); leadOsc.type="sawtooth";
+    const osc2 = ctx.createOscillator(); osc2.type="sine"; osc2.detune.value=-1200;
+    leadFilter = ctx.createBiquadFilter(); leadFilter.type="lowpass"; leadFilter.frequency.value=1800; leadFilter.Q.value=1.1;
+    leadGainNode = ctx.createGain(); leadGainNode.gain.value=0;
+    leadVibratoLFO = ctx.createOscillator(); leadVibratoLFO.type="sine"; leadVibratoLFO.frequency.value=5.2;
+    const vibAmt = ctx.createGain(); vibAmt.gain.value=4;
+    leadVibratoLFO.connect(vibAmt); vibAmt.connect(leadOsc.detune);
+    const mix2 = ctx.createGain(); mix2.gain.value=0.35;
+    leadOsc.connect(leadFilter);
+    osc2.connect(mix2); mix2.connect(leadFilter);
+    leadFilter.connect(leadGainNode); leadGainNode.connect(layers.lead.duck);
+    leadOsc.start(); osc2.start(); leadVibratoLFO.start();
+    leadOsc._osc2 = osc2;
+  }
+  function playLeadNote(time, freq, dur, amt, energyNow){
+    ensureLead();
+    leadOsc.frequency.cancelScheduledValues(time);
+    leadOsc.frequency.setTargetAtTime(freq, time, 0.05);
+    leadOsc._osc2.frequency.cancelScheduledValues(time);
+    leadOsc._osc2.frequency.setTargetAtTime(freq, time, 0.05);
+    leadFilter.frequency.setTargetAtTime(1400+(energyNow||0)*4200, time, 0.08);
+    leadGainNode.gain.cancelScheduledValues(time);
+    leadGainNode.gain.setValueAtTime(leadGainNode.gain.value, time);
+    leadGainNode.gain.linearRampToValueAtTime(amt, time+0.04);
+    leadGainNode.gain.linearRampToValueAtTime(amt*0.7, time+dur*0.6);
+    leadGainNode.gain.linearRampToValueAtTime(0.0001, time+dur);
+  }
+
+  function ensureDrone(){
+    if(droneNodes) return;
+    const osc1 = ctx.createOscillator(); osc1.type="sine"; osc1.frequency.value=ROOT/2;
+    const osc2 = ctx.createOscillator(); osc2.type="triangle"; osc2.frequency.value=ROOT/2*1.001;
+    const filt = ctx.createBiquadFilter(); filt.type="lowpass"; filt.frequency.value=500;
+    const g = ctx.createGain(); g.gain.value=0.16;
+    osc1.connect(filt); osc2.connect(filt); filt.connect(g); g.connect(layers.drone.duck);
+    osc1.start(); osc2.start();
+    droneNodes={osc1,osc2,filt,g};
+  }
+  function ensurePad(){
+    if(padNodes) return;
+    const oscs=[]; const detunes=[-7,0,7];
+    const filt = ctx.createBiquadFilter(); filt.type="lowpass"; filt.frequency.value=900;
+    const g = ctx.createGain(); g.gain.value=0.0001;
+    const lfo = ctx.createOscillator(); lfo.type="sine"; lfo.frequency.value=0.06;
+    const lfoAmt = ctx.createGain(); lfoAmt.gain.value=500;
+    lfo.connect(lfoAmt); lfoAmt.connect(filt.frequency);
+    for(const d of detunes){
+      const o = ctx.createOscillator(); o.type="sawtooth"; o.detune.value=d;
+      o.connect(filt); o.start(); oscs.push(o);
+    }
+    filt.connect(g); g.connect(layers.pad.duck);
+    lfo.start();
+    padNodes={oscs,filt,g,lfo};
+  }
+  function setPadChord(root, third, fifth){
+    if(!padNodes) return;
+    const t = ctx.currentTime;
+    padNodes.oscs[0].frequency.setTargetAtTime(root, t, 1.2);
+    padNodes.oscs[1].frequency.setTargetAtTime(third, t, 1.2);
+    padNodes.oscs[2].frequency.setTargetAtTime(fifth, t, 1.2);
+  }
+
+  const PLUCK_PATTERNS = [[0,2,4,2],[0,4,7,4,2,4],[0,2,3,5],[0,7,4,2]];
+
+  function elapsed(){ return ctx.currentTime - startTime; }
+
+  function resolveLayerIdentity(key){
+    if(layerLock[key] !== "auto") return layerLock[key];
+    if(Math.random() < spread){
+      layerOwnState[key] = rollState(layerOwnState[key], globalWeights, 0.4);
+      return layerOwnState[key];
+    }
+    return sharedState;
+  }
+
+  function schedulePulse(time){
+    const energyEff = Math.max(0, Math.min(1, energy));
+    energy += (energyTargetManual - energy) * 0.03 + (Math.random()-0.5)*0.01;
+    energy = Math.max(0, Math.min(1, energy));
+
+    if(pulseIndex % MACRO_CYCLE === 0){
+      sharedState = rollState(sharedState, globalWeights, 0.55);
+      tempoTarget = 78 + (STATES[sharedState]?.tempoFeel || 1) * 32 + energyEff*20;
+      for(const k of Object.keys(layerIdentity)) layerIdentity[k] = resolveLayerIdentity(k);
+    }
+    tempo += (tempoTarget-tempo)*0.01;
+
+    // ---- percussion (tabla + kick) ----
+    const percSt = STATES[layerIdentity.perc];
+    const percTheka = THEKA[layerIdentity.perc] || THEKA.s0;
+    const pStep = pulseIndex % percSt.cycle;
+    const accent = percTheka[pStep % percTheka.length];
+    const density = (0.5 + energyEff*0.55) * layers.perc.density;
+    if(Math.random() < accent*density*0.9 + 0.04*layers.perc.density){
+      tablaVoice(layers.perc.duck, time, accent, energyEff, 1);
+    }
+    const nowWeight = (globalWeights.s2/100) + (sharedState==="s2"?0.4:0);
+    const kickChance = Math.max(nowWeight*0.95, 0.15 + energyEff*0.85);
+    if(pulseIndex%4===0 && Math.random() < kickChance*layers.perc.density){
+      kickVoice(layers.perc.duck, time, 0.75+energyEff*0.3);
+      const pump = 0.5 + energyEff*0.35;
+      duck(layers.bass.duck, pump, 0.2);
+      duck(layers.pad.duck, 0.4+energyEff*0.2, 0.26);
+      duck(layers.drone.duck, 0.25+energyEff*0.1, 0.26);
+      duck(layers.lead.duck, 0.18+energyEff*0.22, 0.2);
+      duck(layers.pluck.duck, 0.15+energyEff*0.2, 0.18);
+    }
+    // off-beat hats: an EDM-leaning shimmer on top of the theka, scales in with energy
+    if(energyEff > 0.18){
+      if(pulseIndex%2===1) hihatVoice(layers.perc.duck, time, false, energyEff);
+      if(pulseIndex%8===6) hihatVoice(layers.perc.duck, time, true, energyEff);
+    }
+
+    // ---- bass ----
+    const bassSt = STATES[layerIdentity.bass];
+    const bassRate = energyEff>0.6 ? 2 : (energyEff>0.3 ? 4 : 8);
+    if(pulseIndex % bassRate === 0 && Math.random() < Math.min(1,layers.bass.density)){
+      bassDegree = nextDegree(bassDegree);
+      const freq = degreeToFreq(bassSt.scale, bassDegree, -2);
+      const amt = (0.5+energyEff*0.35) * Math.min(1.4,layers.bass.density);
+      bassVoice(layers.bass.duck, time, freq, (60/tempo)*(bassRate/4)*0.9, amt);
+    }
+
+    // ---- lead ----
+    const leadSt = STATES[layerIdentity.lead];
+    const step0 = pulseIndex % MACRO_CYCLE === 0;
+    const leadChance = ((step0?0.85:0.12) + energyEff*0.15) * layers.lead.density;
+    if(Math.random() < leadChance){
+      leadDegree = nextDegree(leadDegree);
+      const octave = energyEff>0.7 ? 1 : 0;
+      const freq = degreeToFreq(leadSt.scale, leadDegree, octave);
+      const dur = (60/tempo) * (1+Math.floor(Math.random()*3));
+      playLeadNote(time, freq, dur, (0.22+energyEff*0.22)*Math.min(1.4,layers.lead.density), energyEff);
+    }
+
+    // ---- pad ----
+    ensurePad();
+    const padSt = STATES[layerIdentity.pad];
+    if(pulseIndex % MACRO_CYCLE === 0){
+      const r = degreeToFreq(padSt.scale,0,-1), th = degreeToFreq(padSt.scale,2,-1), fi=degreeToFreq(padSt.scale,4,-1);
+      setPadChord(r,th,fi);
+    }
+    padNodes.g.gain.setTargetAtTime((0.06+energyEff*0.22)*Math.min(1.4,layers.pad.density), time, 0.6);
+
+    // ---- pluck ----
+    const pluckSt = STATES[layerIdentity.pluck];
+    const plStep = pulseIndex % 7;
+    if(plStep===0) pluckPatternIdx = Math.floor(Math.random()*PLUCK_PATTERNS.length);
+    const pat = PLUCK_PATTERNS[pluckPatternIdx];
+    if(plStep < pat.length && Math.random() < 0.5*layers.pluck.density){
+      pluckDegree = pat[plStep];
+      const freq = degreeToFreq(pluckSt.scale, pluckDegree, 0);
+      const amt = (0.18+energyEff*0.12)*Math.min(1.4,layers.pluck.density);
+      if(energyEff > 0.5){
+        stabVoice(layers.pluck.duck, freq*2, time, 0.22+Math.random()*0.12, amt*1.1);
+      } else {
+        pluckVoice(layers.pluck.duck, freq, time, 0.28+Math.random()*0.15, amt, "triangle");
+      }
+    }
+
+    // ---- drone ----
+    ensureDrone();
+    const droneSt = STATES[layerIdentity.drone];
+    droneNodes.g.gain.setTargetAtTime((0.10+ (globalWeights.s0/100)*0.16)*Math.min(1.4,layers.drone.density), time, 1.5);
+    droneNodes.filt.frequency.setTargetAtTime(350+energyEff*500, time, 1.0);
+    if(pulseIndex % 4 === 0){
+      const idx4 = Math.floor(pulseIndex/4)%4;
+      const deg = idx4===0?0: idx4===3?0: 4;
+      const oct = idx4===0? 1: 0;
+      const freq = degreeToFreq(droneSt.scale, deg, oct-1);
+      pluckVoice(layers.drone.duck, freq, time, 1.8, (0.11+(globalWeights.s0/100)*0.06)*Math.min(1.4,layers.drone.density), "sawtooth");
+    }
+
+    pulseIndex++;
+  }
+
+  function scheduler(){
+    while(nextPulseTime < ctx.currentTime + LOOKAHEAD){
+      schedulePulse(nextPulseTime);
+      nextPulseTime += (60/tempo)/4;
+    }
+  }
+
+  function start(){
+    if(running) return;
+    if(!ctx) buildGraph();
+    ctx.resume();
+    running=true;
+    startTime = ctx.currentTime + 0.1;
+    nextPulseTime = startTime;
+    pulseIndex=0;
+    schedulerId = setInterval(scheduler, INTERVAL);
+    document.getElementById("playBtn").textContent="Stop";
+  }
+  function stop(){
+    running=false;
+    clearInterval(schedulerId);
+    if(arcTimer){ clearInterval(arcTimer); arcTimer=null; document.getElementById("roPhase").textContent="—"; }
+    if(ctx){
+      const t=ctx.currentTime;
+      master.gain.setTargetAtTime(0.0001, t, 0.4);
+      setTimeout(()=>{ if(!running) ctx.suspend(); master.gain.setValueAtTime(0.9, ctx.currentTime+0.6);}, 900);
+    }
+    document.getElementById("playBtn").textContent="Begin";
+  }
+
+  // ---------- UI ----------
+  const CH_META = [
+    {key:"drone", label:"Drone", color:"#c9b28a"},
+    {key:"perc",  label:"Percussion", color:"#e0d3b0"},
+    {key:"bass",  label:"Bass", color:"#e0a6b8"},
+    {key:"lead",  label:"Lead", color:"#a6c9e0"},
+    {key:"pad",   label:"Pad", color:"#bda6e0"},
+    {key:"pluck", label:"Pluck", color:"#a6e0c2"},
+  ];
+  const mixerEl = document.getElementById("mixer");
+  for(const m of CH_META){
+    const div = document.createElement("div"); div.className="ch"; div.dataset.key=m.key;
+    div.innerHTML = `
+      <div class="name">
+        <span><span class="colordot" style="background:${m.color}"></span>${m.label}</span>
+        <span class="mute" data-key="${m.key}">mute</span>
+      </div>
+      <div class="field">
+        <div class="fl"><span>volume</span></div>
+        <input type="range" min="0" max="100" value="${m.key==='drone'?55:m.key==='pad'?50:m.key==='perc'?70:65}" data-vol="${m.key}">
+      </div>
+      <div class="field">
+        <div class="fl"><span>density</span></div>
+        <input type="range" min="0" max="150" value="100" data-density="${m.key}">
+      </div>
+      <div class="locks" data-lockgroup="${m.key}">
+        <div class="lockbtn active" data-lock="auto">Auto</div>
+        <div class="lockbtn" data-lock="s0">I</div>
+        <div class="lockbtn" data-lock="s1">II</div>
+        <div class="lockbtn" data-lock="s2">III</div>
+      </div>
+    `;
+    mixerEl.appendChild(div);
+  }
+  mixerEl.addEventListener("input", (e)=>{
+    const volKey = e.target.getAttribute("data-vol");
+    if(volKey && layers[volKey]){
+      layers[volKey].baseVol = e.target.value/100;
+      if(!layers[volKey].mute && ctx) layers[volKey].vol.gain.setTargetAtTime(layers[volKey].baseVol, ctx.currentTime, 0.05);
+    }
+    const denKey = e.target.getAttribute("data-density");
+    if(denKey && layers[denKey]) layers[denKey].density = e.target.value/100;
+  });
+  mixerEl.addEventListener("click", (e)=>{
+    const muteKey = e.target.getAttribute("data-key");
+    if(muteKey && layers[muteKey] && ctx){
+      layers[muteKey].mute = !layers[muteKey].mute;
+      e.target.classList.toggle("off", layers[muteKey].mute);
+      layers[muteKey].vol.gain.setTargetAtTime(layers[muteKey].mute?0.0001:layers[muteKey].baseVol, ctx.currentTime, 0.05);
+    }
+    if(e.target.classList.contains("lockbtn")){
+      const group = e.target.parentElement;
+      const key = group.getAttribute("data-lockgroup");
+      const state = e.target.getAttribute("data-lock");
+      layerLock[key] = state;
+      [...group.children].forEach(c=>c.classList.remove("active"));
+      e.target.classList.add("active");
+    }
+  });
+
+  document.getElementById("playBtn").addEventListener("click", ()=>{ running? stop(): start(); });
+  document.getElementById("tempoSlider").addEventListener("input", (e)=>{ tempoTarget = +e.target.value; });
+  document.getElementById("energySlider").addEventListener("input", (e)=>{ energyTargetManual = +e.target.value/100; });
+  document.getElementById("spreadSlider").addEventListener("input", (e)=>{ spread = +e.target.value/100; });
+  document.querySelectorAll(".gw").forEach(inp=>{
+    inp.addEventListener("input", (e)=>{ globalWeights[e.target.dataset.state] = +e.target.value; });
+  });
+  document.getElementById("reseedBtn").addEventListener("click", ()=>{
+    leadDegree = Math.floor(Math.random()*7); bassDegree=Math.floor(Math.random()*7); pluckDegree=0;
+  });
+
+  // ---------- 15-minute performance arc ----------
+  // A keyframed automation over energy / tempo / state-weights / spread that turns
+  // the generator into a self-conducting set: intro, two build/drop pairs, a
+  // breakdown, and an outro. Times are seconds from when the arc is started.
+  const ARC = [
+    {t:0,   e:22, bpm:98,  w:[55,30,15], sp:12, label:"Intro"},
+    {t:90,  e:32, bpm:100, w:[45,30,25], sp:14, label:"Intro"},
+    {t:210, e:60, bpm:116, w:[22,25,53], sp:26, label:"Build"},
+    {t:240, e:90, bpm:126, w:[10,15,75], sp:35, label:"Drop"},
+    {t:360, e:90, bpm:128, w:[8,12,80],  sp:36, label:"Drop"},
+    {t:420, e:55, bpm:116, w:[20,30,50], sp:24, label:"Breakdown"},
+    {t:480, e:26, bpm:98,  w:[50,35,15], sp:10, label:"Breakdown"},
+    {t:600, e:45, bpm:104, w:[35,30,35], sp:16, label:"Rebuild"},
+    {t:690, e:95, bpm:130, w:[6,10,84],  sp:40, label:"Peak Drop"},
+    {t:800, e:95, bpm:132, w:[6,10,84],  sp:40, label:"Peak Drop"},
+    {t:860, e:45, bpm:108, w:[35,30,35], sp:18, label:"Outro"},
+    {t:900, e:10, bpm:88,  w:[65,25,10], sp:6,  label:"Outro"},
+  ];
+  let arcTimer=null, arcStart=0;
+  function applyArcFrame(v){
+    energyTargetManual = v.e/100;
+    document.getElementById("energySlider").value = Math.round(v.e);
+    tempoTarget = v.bpm;
+    document.getElementById("tempoSlider").value = Math.round(v.bpm);
+    globalWeights.s0=v.w[0]; globalWeights.s1=v.w[1]; globalWeights.s2=v.w[2];
+    document.querySelector('.gw[data-state="s0"]').value = Math.round(v.w[0]);
+    document.querySelector('.gw[data-state="s1"]').value = Math.round(v.w[1]);
+    document.querySelector('.gw[data-state="s2"]').value = Math.round(v.w[2]);
+    spread = v.sp/100;
+    document.getElementById("spreadSlider").value = Math.round(v.sp);
+    document.getElementById("roPhase").textContent = v.label;
+  }
+  function arcTick(){
+    if(!running) return;
+    const el = (performance.now()-arcStart)/1000;
+    if(el >= ARC[ARC.length-1].t){
+      applyArcFrame(ARC[ARC.length-1]);
+      clearInterval(arcTimer); arcTimer=null;
+      setTimeout(()=>{ if(running) stop(); }, 5000);
+      return;
+    }
+    let i=0; while(i<ARC.length-1 && ARC[i+1].t<=el) i++;
+    const a=ARC[i], b=ARC[Math.min(i+1,ARC.length-1)];
+    const span = Math.max(1, b.t-a.t);
+    const f = Math.max(0, Math.min(1, (el-a.t)/span));
+    applyArcFrame({
+      e: lerp(a.e,b.e,f), bpm: lerp(a.bpm,b.bpm,f),
+      w: [lerp(a.w[0],b.w[0],f), lerp(a.w[1],b.w[1],f), lerp(a.w[2],b.w[2],f)],
+      sp: lerp(a.sp,b.sp,f), label: f<0.5?a.label:b.label
+    });
+  }
+  document.getElementById("performBtn").addEventListener("click", ()=>{
+    if(!running) start();
+    if(arcTimer) clearInterval(arcTimer);
+    arcStart = performance.now();
+    arcTick();
+    arcTimer = setInterval(arcTick, 1000);
+  });
+
+  // ---------- visualization ----------
+  const canvas = document.getElementById("viz");
+  const cctx = canvas.getContext("2d");
+  const vizPos = {drone:{x:0,y:0},perc:{x:0,y:0},bass:{x:0,y:0},lead:{x:0,y:0},pad:{x:0,y:0},pluck:{x:0,y:0}};
+  let trail = [];
+
+  function vertexFor(id, W,H){
+    const cx=W/2, cy=H*0.42, r=H*0.36;
+    if(id==="s0") return {x:cx, y:cy-r};
+    if(id==="s1") return {x:cx-r*0.95, y:cy+r*0.75};
+    return {x:cx+r*0.95, y:cy+r*0.75};
+  }
+
+  function draw(){
+    requestAnimationFrame(draw);
+    const W = canvas.width, H = canvas.height;
+    cctx.fillStyle = "#0e0b12"; cctx.fillRect(0,0,W,H);
+
+    const cx=W/2, cy=H*0.42, r=H*0.36;
+    const vS0 = vertexFor("s0",W,H), vS1=vertexFor("s1",W,H), vS2=vertexFor("s2",W,H);
+
+    cctx.strokeStyle = "rgba(236,230,218,0.18)"; cctx.lineWidth=1.5;
+    cctx.beginPath(); cctx.moveTo(vS0.x,vS0.y); cctx.lineTo(vS1.x,vS1.y); cctx.lineTo(vS2.x,vS2.y); cctx.closePath(); cctx.stroke();
+
+    const wTotal = globalWeights.s0+globalWeights.s1+globalWeights.s2 || 1;
+    [["s0",vS0],["s1",vS1],["s2",vS2]].forEach(([k,v])=>{
+      const wNorm = globalWeights[k]/wTotal;
+      const rad = 10+wNorm*50;
+      const grad = cctx.createRadialGradient(v.x,v.y,0,v.x,v.y,rad);
+      grad.addColorStop(0, STATES[k].color+"cc");
+      grad.addColorStop(1, STATES[k].color+"00");
+      cctx.fillStyle=grad;
+      cctx.beginPath(); cctx.arc(v.x,v.y,rad,0,7); cctx.fill();
+      cctx.fillStyle = STATES[k].color;
+      cctx.beginPath(); cctx.arc(v.x,v.y,5,0,7); cctx.fill();
+      cctx.font="24px Georgia, serif"; cctx.fillStyle="#ece6da"; cctx.textAlign="center";
+      const off = k==="s0"? -20: 32;
+      cctx.fillText(k==="s0"?"I":k==="s1"?"II":"III", v.x, v.y+off);
+    });
+
+    const layerColor = {drone:"#c9b28a",perc:"#e0d3b0",bass:"#e0a6b8",lead:"#a6c9e0",pad:"#bda6e0",pluck:"#a6e0c2"};
+    let avgX=0, avgY=0, n=0;
+    for(const k of Object.keys(layerIdentity)){
+      const target = vertexFor(layerIdentity[k]||"s0", W,H);
+      const jitterId = k.length;
+      const p = vizPos[k];
+      p.x += (target.x - p.x)*0.03; p.y += (target.y - p.y)*0.03;
+      avgX+=p.x; avgY+=p.y; n++;
+      const ang = (jitterId*67)%360 * Math.PI/180;
+      const jx = p.x + Math.cos(ang)*18, jy = p.y + Math.sin(ang)*18;
+      cctx.fillStyle = layerColor[k];
+      cctx.beginPath(); cctx.arc(jx,jy,6,0,7); cctx.fill();
+    }
+    if(n>0){ avgX/=n; avgY/=n; trail.push({x:avgX,y:avgY}); if(trail.length>140) trail.shift(); }
+    cctx.strokeStyle="rgba(236,230,218,0.35)"; cctx.lineWidth=2;
+    cctx.beginPath();
+    trail.forEach((p,i)=>{ if(i===0) cctx.moveTo(p.x,p.y); else cctx.lineTo(p.x,p.y); });
+    cctx.stroke();
+
+    const emY=H*0.94, emX0=W*0.06, emX1=W*0.94;
+    cctx.strokeStyle="rgba(236,230,218,0.2)"; cctx.beginPath(); cctx.moveTo(emX0,emY); cctx.lineTo(emX1,emY); cctx.stroke();
+    const eLen = emX0 + Math.max(0,Math.min(1,energy))*(emX1-emX0);
+    cctx.strokeStyle="#d1436b"; cctx.lineWidth=4; cctx.beginPath(); cctx.moveTo(emX0,emY); cctx.lineTo(eLen,emY); cctx.stroke();
+
+    document.getElementById("roStateDot").style.background = STATES[sharedState]?STATES[sharedState].color:"#666";
+    document.getElementById("roSpread").textContent = Math.round(spread*100)+"%";
+    document.getElementById("roEnergy").textContent = Math.round(Math.max(0,Math.min(1,energy))*100)+"%";
+    document.getElementById("roTempo").textContent = Math.round(tempo);
+    const et = running? elapsed():0;
+    const mm = Math.floor(et/60), ss = Math.floor(et%60);
+    document.getElementById("roTime").textContent = mm+":"+String(ss).padStart(2,"0");
+  }
+  requestAnimationFrame(draw);
+})();
+</script>
+</body>
+</html>
